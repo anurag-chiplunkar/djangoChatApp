@@ -1,0 +1,54 @@
+{% extends './base.html' %}
+
+{% block content %}
+    {% if user.is_authenticated %}
+        {% else %}
+    {% endif %}
+    <hr/>
+    <center><h1>💬Chat App💬</h1></center>
+    <hr/>
+    <br>
+    <h2>
+        <b>
+            {% if request.user.is_authenticated %}
+                {% if profile %}
+                    <img src="{{ profile.avatar.url }}" width="50" height="50"/>
+                {% else %}
+                    <img src="#" width="50" height="50" alt="No Image"/>
+                {% endif %}
+            Hello {{request.user.username}} : 
+            <a href="{% url 'friend_list' %}" style="text-decoration: none; color: rgb(255, 95, 2);"> My Chat List</a> 
+            <span id = 'overall_unread' class="w3-badge w3-large w3-green w3-margin-right">{{unread_msg}}</span>
+            <a href="{% url 'profileUpdate' %}">
+                <button type="button" class="btn btn-primary btn-sm">Upload Avatar</button>
+            </a>
+            <form method="POST" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <p>You are logged in. Would you like to logout?</p>
+                <button type="submit" value="Logout">Yes, logout</button>
+
+            </form>
+            {% else %}
+            Login Required : <a href="/api_auth/login/">Login</a>{% endif %}
+        </b>
+
+        <br/>
+        <a href="{% url 'create_friend' %}" style="text-decoration: none; color: rgb(255, 188, 2);"><h4>🔀Add Friend in chat list🔀</h4></a>
+    </h2>
+    
+{% endblock %}
+
+{% block script %}
+
+    <script>
+        PersonalSocket.onmessage = (e) => {     // Event listener for incoming messages
+                const data = JSON.parse(e.data);        // Parse the incoming message data as JSON
+                if (data.msg_type === 'MESSAGE_COUNTER') {      // Check if the message type is 'MESSAGE_COUNTER'
+
+                    // Update the content of the HTML element with ID "overall_unread"
+                    document.getElementById("overall_unread").textContent = data.overall_unread_msg
+                }
+            }
+    </script>
+
+{% endblock %}

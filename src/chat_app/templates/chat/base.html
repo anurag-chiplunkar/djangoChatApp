@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Page</title>
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+</head>
+<body>
+
+
+    {% block content %}
+    {% endblock %}
+
+    <span hidden id='personal_room'>{{request.user.id}}</span>
+
+    <script>
+            const PersonalroomName = JSON.parse(document.getElementById('personal_room').textContent);      // Get the personal room name from HTML content
+            const PersonalSocket = new WebSocket(       // Create a new WebSocket connection
+                'ws://' + window.location.host + '/ws/personal_chat/' + PersonalroomName + '/'      // WebSocket URL
+            );
+            const set_online = () => {      // Function to notify the server when the user goes online
+                setTimeout(() => {      // Delay execution by 1 second (1000 milliseconds)
+                    PersonalSocket.send(JSON.stringify({        // Send a JSON message to the server
+                        'msg_type': 'WENT_ONLINE',      // Message type indicating the user went online
+                        'user_id': '{{request.user.id}}'        // User ID of the current user (obtained from the server-side template)
+                    }));
+                }, 1000)        // Wait for 1000 milliseconds before sending the message
+            }
+
+            document.addEventListener("visibilitychange", event => {        // Listen for visibility change events
+                    if (document.visibilityState == "visible") {        // If the document becomes visible
+                        if (PersonalSocket.readyState === WebSocket.OPEN){      // Check if the WebSocket connection is open
+                            PersonalSocket.send(JSON.stringify({        // Send a JSON message to the server
+                                'msg_type': 'WENT_ONLINE',      // Message type indicating the user went online
+                                'user_id': '{{request.user.id}}'        // User ID of the current user (obtained from the server-side template)
+                            }));
+                        }
+                    }
+                    else{       // If the document becomes hidden
+                        if(PersonalSocket.readyState === WebSocket.OPEN){       // Check if the WebSocket connection is open
+                                    PersonalSocket.send(JSON.stringify({        // Send a JSON message to the server
+                                        'msg_type': 'WENT_OFFLINE',     // Message type indicating the user went offline
+                                        'user_id': '{{request.user.id}}'        // User ID of the current user (obtained from the server-side template)
+                                    }));
+                            }
+                        }
+                }
+            );
+
+            PersonalSocket.onopen = set_online();
+    </script>
+
+    {% block script %}
+    {% endblock %}
+
+
+</body>
+</html>

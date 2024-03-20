@@ -1,0 +1,17 @@
+{% extends './base.html' %}
+
+{% block content %}
+    <div class="col-6">
+        <h3>Upload/Update Profile Avatar</h3>
+        <br/>
+
+        <form method="POST" action="" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ profileForm.as_p }}
+            <br/>
+            <button type="submit" class="btn btn-secondary">Update Profile Avatar</button>
+        </form>
+    </div>
+
+{% endblock %}
+

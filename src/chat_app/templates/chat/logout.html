@@ -1,0 +1,36 @@
+{% extends './base.html' %}
+
+{% block content %}
+    <hr/>
+    <center><h1>💬Chat App💬</h1></center>
+    <hr/>
+    <br>
+    <h2>
+        <b>
+            {% if request.user.is_authenticated %}
+            <p>You are logged in. Would you like to logout?</p>
+            <button type="submit">Yes, logout</button>
+
+            {% endif %}
+        </b>
+    </h2>
+    
+{% endblock %}
+
+{% block script %}
+
+    <script>
+
+        /**
+         * Listen for incoming messages on the PersonalSocket.
+         * Update overall unread message count when a 'MESSAGE_COUNTER' message is received.
+         */
+        PersonalSocket.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.msg_type === 'MESSAGE_COUNTER') {
+                    document.getElementById("overall_unread").textContent = data.overall_unread_msg
+                }
+            }
+    </script>
+
+{% endblock %}

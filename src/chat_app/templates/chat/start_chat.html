@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Chat Room</title>
+    <style>        
+        div.scroll {
+            margin: 4px, 4px;
+            padding: 4px;
+            width: 95%;
+            height: 350px;
+            overflow-x: auto;
+            overflow-y: auto;
+            text-align: justify;
+            border: 2px solid rgb(196, 224, 196);
+            border-radius: 9px;
+            position: relative;
+        }
+        ::-webkit-scrollbar {
+        width: 3px;
+        }
+        /* Track */
+        ::-webkit-scrollbar-track {
+        box-shadow: inset 0 0 5px grey; 
+        border-radius: 10px;
+        }
+        
+        /* Handle */
+        ::-webkit-scrollbar-thumb {
+        background: rgb(49, 39, 39); 
+        border-radius: 10px;
+        }
+
+        /* Handle on hover */
+        ::-webkit-scrollbar-thumb:hover {
+        background: #b81f1f; 
+        }
+        .chat_box{
+            border: 1px solid black;
+            width: 50%;
+            height: auto;
+            border-radius: 8px;
+            padding: 3px;
+            background-color:#7d7dee;
+            }
+
+    </style>
+</head>
+
+<body>
+    {% load convert_date %}
+    <h2>🧒 | {{opposite_user.username | title}}
+    </h2>
+    <div>
+        <div id="chat-log" class="scroll">
+            {% for msg in fetch_all_message %}
+            <p class="chat_box" id="{{msg.id}}">
+                <small> <b class="check_user">{{msg.user.username}}</b> - {{msg.message_detail.timestamp | convert_date | date:"M d'Y f"}}</small>
+                <br/>
+                <span style="padding: 7px; color: #ffffff; font-weight: bold;"> • {{msg.message_detail.msg}}</span>
+                <br/>
+                {% if msg.user == request.user  %}
+                    <small id = "as_read" style="padding-left: 95%;{% if msg.message_detail.read %}color: rgb(8, 255, 8);{% else %}color: #bbb8b8 {% endif %}font-weight: bold;">✔✔</small>
+                {% endif %}
+            </p>
+            {% endfor %}
+        </div><br>
+        <input id="chat-message-input" type="text" placeholder="Enter Message..." autofocus style="width: 50%; padding: 8px;">
+        <input id="chat-message-submit" type="button" value="Send" style="padding: 6px;">
+    </div>
+    {{ room_name|json_script:"room_name" }}
+
+</body>
+
+</html>
+
+<script>
+    // Retrieve the room name from the 'room_name' element's text content
+    const roomName = JSON.parse(document.getElementById('room_name').textContent);
+
+
+    // Establish a WebSocket connection for real-time chat communication
+    const chatSocket = new WebSocket(
+        'ws://'+ window.location.host+ '/ws/chat/'+ roomName+ '/'
+    );
+
+
+    // Define a function to send a message indicating that all messages in the chat have been read
+    var send_all_read = () => {
+    // Set a timeout to delay the sending of the message
+    setTimeout(() => {
+        // Send a JSON stringified message via the WebSocket connection
+        chatSocket.send(JSON.stringify({
+            'msg_type': 'ALL_MESSAGE_READ',     // Specify the message type
+            'user': '{{request.user.username}}'     // Include the username of the current user
+        }));
+        // Update the title of the document to indicate the chat room
+        document.querySelector('title').textContent = "Chat Room"
+    }, 1000)}       // Delay sending the message by 1000 milliseconds (1 second)
+
+
+    // Set up a WebSocket event handler to execute a function when the connection is opened
+    WebSocket.onopen = send_all_read()
+
+    var messageBody = document.querySelector('.scroll');
+    messageBody.scrollTop = messageBody.scrollHeight - messageBody.clientHeight;
+
+
+    /**
+     * Adds a new chat message element to the chat log.
+     * @param {object} data - The data object containing message details.
+     * @param {string} box_color - The background color for the message box.
+     */
+    const add_element = (data,box_color) => {
+        // Determine if the message is from the current user or another user
+        const user = data.user === '{{request.user.username}}' ? "You" : data.user
+
+        // Check for error message and format it if exists
+        const error_msg = data.error_message === 'MESSAGE_OUT_OF_LENGTH' ? "<br/>" + "Error:Msg size must be less then 10 char." + "<br/>" + " • This Message not sent.." :false
+
+        // Add read confirmation if the message is from the current user
+        const add_read = data.user === '{{request.user.username}}' ? '<small id="as_read" style="padding-left: 95%; color: #bbb8b8; font-weight: bold;">✔✔</small>':''
+
+        // Construct the chat message element
+        ele = `<p id=${data.msg_id} class="chat_box" style = "background-color : ${box_color};"><small><b>${user}</b> - ${data.timestampe}</small><br/><span style="color: #ffffff; font-weight: bold;""> • ${data.message}<small><br/>${error_msg ? error_msg :add_read }</small></span><br/></p>`
+
+        // Append the new message element to the chat log
+        document.querySelector('#chat-log').innerHTML += ele
+
+        // Scroll to the bottom of the chat log
+        messageBody.scrollTop = messageBody.scrollHeight - messageBody.clientHeight;
+    }
+
+
+    /**
+     * Checks if the message has been read and updates the title with the number of unread messages.
+     * Sends a message read confirmation if the message is not from the current user.
+     * @param {string} user_name - The username of the message sender.
+     * @param {string} msg_id - The ID of the message.
+     */
+    const check_read = (user_name,msg_id) => {
+            if(document.hidden){
+
+                // If the document is hidden, update the title with the number of unread messages
+                let unread_msg = document.querySelector('title').textContent.split(":")[1];
+                if(unread_msg){
+                    document.querySelector('title').textContent = "Unread Messages : " + (parseInt(unread_msg) + 1)
+                }
+                else{
+                    document.querySelector('title').textContent = "Unread Messages : " + 1
+                }
+            }
+            else{
+
+                // If the document is visible and the message is not from the current user, send message read confirmation
+                if (user_name !== '{{request.user.username}}') {
+                    chatSocket.send(JSON.stringify({
+                        'msg_type': 'MESSAGE_READ',
+                        'msg_id': msg_id,
+                        'user': user_name
+                    }));
+            }
+        }
+    }
+
+
+    /**
+     * Event listener for changes in document visibility.
+     * When the document becomes visible, it checks if there are unread messages and triggers the function to mark all messages as read.
+     * If there are unread messages, it triggers the function to mark all messages as read.
+     * @param {Event} event - The visibility change event.
+     */
+    document.addEventListener("visibilitychange", event => {
+        if (document.visibilityState == "visible") {
+
+            // When the document becomes visible
+            let unread_msg = document.querySelector('title').textContent.split(":")[1];
+            if (unread_msg) {
+
+                // If there are unread messages, trigger the function to mark all messages as read
+                send_all_read()
+            }
+        }
+    })
+
+
+    /**
+     * Event listener for incoming messages on the WebSocket connection.
+     * Parses the incoming message and performs actions based on the message type.
+     * @param {MessageEvent} e - The message event containing the received data.
+     */
+    chatSocket.onmessage = (e) => {
+
+        // Parse the incoming message data
+        const data = JSON.parse(e.data);
+
+        // Handle different message types
+        if(data.msg_type === 'ERROR_OCCURED'){
+
+            // If the message type is an error
+            if(data.error_message === 'MESSAGE_OUT_OF_LENGTH'){
+
+                // If the error is due to message length, display the error in red color
+                box_color = 'red'
+                add_element(data,box_color)
+            }
+            else if(data.error_message === 'UN_AUTHENTICATED'){
+                // If the error is due to unauthenticated user, display an alert
+               alert("You are not authenticated user!!!Login Again..")
+            }
+        }
+        else if(data.msg_type === 'TEXT_MESSAGE'){
+
+            // If the message type is a text message, display the message in blue color
+            box_color = '#7d7dee'
+            add_element(data,box_color)
+
+            // Check if the message has been read
+            check_read(data.user,data.msg_id)
+        }
+        else if(data.msg_type === 'MESSAGE_READ'){
+            // If the message type is a read confirmation, update the read status
+            if(data.user === '{{request.user.username}}'){
+                setTimeout(() => { document.getElementById(data.msg_id).querySelector('#as_read').style.color = 'rgb(8, 255, 8)'}, 300);
+            }
+        }
+        else if(data.msg_type === 'IS_TYPING'){
+            // If the message type indicates the user is typing, display a typing indicator
+            if(data.user !== '{{request.user.username}}'){
+                document.getElementById('chat-log').innerHTML += "<span id = 'isTyping'>Typing....</span>"
+                messageBody.scrollTop = messageBody.scrollHeight - messageBody.clientHeight;
+            }
+        }
+        else if(data.msg_type === 'NOT_TYPING'){
+            // If the message type indicates the user stopped typing, remove the typing indicator
+            if(data.user !== '{{request.user.username}}'){
+                document.getElementById('chat-log').removeChild(document.getElementById("isTyping"))
+            }
+        }
+        else if (data.msg_type === 'ALL_MESSAGE_READ') {
+            // If the message type indicates all messages have been read, update the read status of all messages
+            if (data.user !== '{{request.user.username}}') {
+                let check_all_read = document.querySelectorAll('#as_read')
+                for (let i = 0; i < check_all_read.length; i++) {
+                    if (check_all_read[i].style.color !== 'rgb(8, 255, 8)') {
+                        check_all_read[i].style.color = 'rgb(8, 255, 8)'
+                    }
+                }
+            }
+        }
+
+    };
+
+
+    /**
+     * Event listener for the chat message input field.
+     * Triggers a click event on the chat message submit button when the "Enter" key is pressed.
+     * @param {KeyboardEvent} e - The keyboard event generated when a key is pressed.
+     */
+    document.querySelector('#chat-message-input').onkeyup = (e) => {
+        // Check if the pressed key is "Enter" (key code 13)
+        if (e.keyCode === 13) {  // enter, return
+            // If "Enter" key is pressed, trigger a click event on the chat message submit button
+            document.querySelector('#chat-message-submit').click();
+        }
+    };
+
+
+    /**
+     * Variable to track if the user is currently typing.
+     */
+    var isTyping = false;
+
+    /**
+     * Timeout variable to track the duration of user inactivity (not typing).
+     */
+    var isNotTyping;
+
+    /**
+     * Event listener for the chat message input field.
+     * Triggers actions when the user starts typing and when there is inactivity.
+     */
+    document.getElementById('chat-message-input').onkeypress = () => {
+        // Send notification that the user is typing
+        sendIsTypingToUser()
+
+        // Clear the previous timeout if exists
+        if (isNotTyping != undefined) clearTimeout(isNotTyping);
+
+        // Set a new timeout to send notification when the user stops typing
+        isNotTyping = setTimeout(sendIsNotTyping, 700);
+    };
+
+
+    /**
+     * Function to send a notification that the user is typing.
+     */
+    function sendIsTypingToUser() {
+        // Check if the user is currently typing
+        if(!isTyping){
+            // Send notification to the server
+            chatSocket.send(JSON.stringify({
+                'user': '{{request.user.username}}',
+                'msg_type': 'IS_TYPING',
+            }));
+            // Update the typing status
+            isTyping = true
+        }
+    }
+
+
+    /**
+     * Function to send a notification that the user has stopped typing.
+     */
+    function sendIsNotTyping() {
+        // Send notification to the server
+        chatSocket.send(JSON.stringify({
+            'user': '{{request.user.username}}',
+            'msg_type': 'NOT_TYPING',
+        }));
+        // Update the typing status
+        isTyping = false
+    }
+
+
+    /**
+     * Event listener for the click event on the chat message submit button.
+     */
+    document.querySelector('#chat-message-submit').onclick = (e) => {
+        // Get the typed message from the input field
+        const messageInputDom = document.querySelector('#chat-message-input');
+        const message = messageInputDom.value;
+
+        // Send the message to the server via WebSocket
+        chatSocket.send(JSON.stringify({
+            'message': message,
+            'msg_type' : 'TEXT_MESSAGE',
+            'user' : '{{request.user.username}}'
+        }));
+
+        messageInputDom.value = '';
+    };
+
+
+    /**
+     * Replace the username text with "You" for elements representing the request user.
+     */
+    const check_user = document.querySelectorAll(".check_user")
+    for (let i = 0; i < check_user.length; i++){
+        if (check_user[i].innerText === '{{request.user.username}}') {
+            check_user[i].innerText = 'You'
+    }
+    }
+</script>
